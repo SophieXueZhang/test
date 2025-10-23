@@ -1,0 +1,258 @@
+{
+  "name": "T恤设计生成器",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-tshirt-design",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "接收竞品图片",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "tshirt-design-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4-vision-preview\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"分析这个T恤设计图片，详细描述：1. 设计风格（极简、复古、街头、艺术等）2. 颜色方案 3. 图案元素 4. 排版布局 5. 目标受众。请用中文回答，格式为JSON，包含：style, colors, elements, layout, audience字段。\"\n        },\n        {\n          \"type\": \"image_url\",\n          \"image_url\": {\n            \"url\": \"={{ $json.body.imageUrl }}\"\n          }\n        }\n      ]\n    }\n  ],\n  \"max_tokens\": 1000\n}",
+        "options": {}
+      },
+      "id": "analyze-image",
+      "name": "分析图片特征",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [470, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "1",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 解析GPT-4的分析结果并生成Stable Diffusion提示词\nconst response = $input.first().json;\nconst analysis = JSON.parse(response.choices[0].message.content);\n\n// 构建详细的提示词\nconst prompt = `\nA creative t-shirt design featuring:\nStyle: ${analysis.style}\nColor scheme: ${analysis.colors.join(', ')}\nElements: ${analysis.elements.join(', ')}\nLayout: ${analysis.layout}\nTarget audience: ${analysis.audience}\n\nHigh quality, professional design, clean background, mockup ready, 4K resolution\n`;\n\nconst negativePrompt = `\nlow quality, blurry, pixelated, distorted, watermark, text, signature, \ncopyrighted logo, bad anatomy, extra limbs, poorly drawn\n`;\n\n// 设置生成参数\nreturn [\n  {\n    json: {\n      prompt: prompt.trim(),\n      negative_prompt: negativePrompt.trim(),\n      analysis: analysis,\n      seed: Math.floor(Math.random() * 999999),\n      steps: 50,\n      cfg_scale: 7.5,\n      width: 1024,\n      height: 1024,\n      samples: 1\n    }\n  }\n];"
+        },
+        "options": {}
+      },
+      "id": "generate-prompt",
+      "name": "生成AI提示词",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.stability.ai/v1/generation/stable-diffusion-xl-1024-v1-0/text-to-image",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text_prompts\": [\n    {\n      \"text\": \"{{ $json.prompt }}\",\n      \"weight\": 1\n    },\n    {\n      \"text\": \"{{ $json.negative_prompt }}\",\n      \"weight\": -1\n    }\n  ],\n  \"cfg_scale\": {{ $json.cfg_scale }},\n  \"height\": {{ $json.height }},\n  \"width\": {{ $json.width }},\n  \"samples\": {{ $json.samples }},\n  \"steps\": {{ $json.steps }},\n  \"seed\": {{ $json.seed }}\n}",
+        "options": {}
+      },
+      "id": "generate-image",
+      "name": "生成设计图片",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [910, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2",
+          "name": "Stability AI"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 处理生成的图片数据\nconst response = $input.first().json;\nconst artifacts = response.artifacts;\n\nconst results = artifacts.map((artifact, index) => {\n  const imageData = artifact.base64;\n  const filename = `tshirt-design-${Date.now()}-${index}.png`;\n  \n  return {\n    json: {\n      filename: filename,\n      imageData: imageData,\n      seed: artifact.seed,\n      finishReason: artifact.finishReason\n    },\n    binary: {\n      data: {\n        data: imageData,\n        mimeType: 'image/png',\n        fileName: filename,\n        fileExtension: 'png'\n      }\n    }\n  };\n});\n\nreturn results;"
+        },
+        "options": {}
+      },
+      "id": "process-image",
+      "name": "处理图片数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "={{ $json.filename }}",
+        "dataPropertyName": "imageData",
+        "options": {
+          "encoding": "base64"
+        }
+      },
+      "id": "save-file",
+      "name": "保存到本地",
+      "type": "n8n-nodes-base.writeFile",
+      "typeVersion": 1,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"T恤设计生成成功\",\n  \"data\": {\n    \"filename\": \"{{ $json.filename }}\",\n    \"downloadUrl\": \"{{ $env.WEBHOOK_URL }}/files/{{ $json.filename }}\",\n    \"seed\": {{ $json.seed }},\n    \"timestamp\": \"{{ new Date().toISOString() }}\"\n  }\n}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "返回结果",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1570, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 错误处理\nconst error = $input.first().json;\n\nreturn [\n  {\n    json: {\n      success: false,\n      error: error.message || '生成失败',\n      timestamp: new Date().toISOString()\n    }\n  }\n];"
+      },
+      "id": "error-handler",
+      "name": "错误处理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1130, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "error-response",
+      "name": "返回错误",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1350, 500]
+    }
+  ],
+  "connections": {
+    "接收竞品图片": {
+      "main": [
+        [
+          {
+            "node": "分析图片特征",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "分析图片特征": {
+      "main": [
+        [
+          {
+            "node": "生成AI提示词",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成AI提示词": {
+      "main": [
+        [
+          {
+            "node": "生成设计图片",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成设计图片": {
+      "main": [
+        [
+          {
+            "node": "处理图片数据",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理图片数据": {
+      "main": [
+        [
+          {
+            "node": "保存到本地",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "保存到本地": {
+      "main": [
+        [
+          {
+            "node": "返回结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "错误处理": {
+      "main": [
+        [
+          {
+            "node": "返回错误",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-23T00:00:00.000Z",
+  "versionId": "1"
+}

@@ -1,0 +1,210 @@
+{
+  "name": "批量T恤设计生成器",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "定时触发",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "path": "/data/uploads",
+        "fileSelector": "*.{jpg,jpeg,png,webp}",
+        "options": {}
+      },
+      "id": "read-files",
+      "name": "读取竞品图片",
+      "type": "n8n-nodes-base.readBinaryFiles",
+      "typeVersion": 1,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-batch",
+      "name": "分批处理",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WEBHOOK_URL }}/webhook/generate-tshirt-design",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"imageUrl\": \"data:image/{{ $binary.data.fileExtension }};base64,{{ $binary.data.data }}\",\n  \"filename\": \"{{ $binary.data.fileName }}\"\n}",
+        "options": {}
+      },
+      "id": "call-workflow",
+      "name": "调用生成工作流",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.success }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-success",
+      "name": "检查结果",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO designs (original_filename, generated_filename, download_url, seed, created_at) VALUES ('{{ $json.originalFilename }}', '{{ $json.data.filename }}', '{{ $json.data.downloadUrl }}', {{ $json.data.seed }}, NOW())",
+        "options": {}
+      },
+      "id": "save-to-db",
+      "name": "保存到数据库",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [1350, 200],
+      "credentials": {
+        "postgres": {
+          "id": "3",
+          "name": "PostgreSQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 记录失败\nconst items = $input.all();\nconst failures = [];\n\nitems.forEach(item => {\n  failures.push({\n    filename: item.json.originalFilename,\n    error: item.json.error,\n    timestamp: new Date().toISOString()\n  });\n});\n\nreturn [{ json: { failures } }];"
+      },
+      "id": "log-failures",
+      "name": "记录失败",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 汇总统计\nconst allItems = $input.all();\nconst summary = {\n  total: allItems.length,\n  successful: 0,\n  failed: 0,\n  timestamp: new Date().toISOString()\n};\n\nallItems.forEach(item => {\n  if (item.json.success) {\n    summary.successful++;\n  } else {\n    summary.failed++;\n  }\n});\n\nreturn [{ json: summary }];"
+      },
+      "id": "generate-summary",
+      "name": "生成汇总报告",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1570, 300]
+    }
+  ],
+  "connections": {
+    "定时触发": {
+      "main": [
+        [
+          {
+            "node": "读取竞品图片",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "读取竞品图片": {
+      "main": [
+        [
+          {
+            "node": "分批处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "分批处理": {
+      "main": [
+        [
+          {
+            "node": "调用生成工作流",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "调用生成工作流": {
+      "main": [
+        [
+          {
+            "node": "检查结果",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查结果": {
+      "main": [
+        [
+          {
+            "node": "保存到数据库",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "记录失败",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "保存到数据库": {
+      "main": [
+        [
+          {
+            "node": "生成汇总报告",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "记录失败": {
+      "main": [
+        [
+          {
+            "node": "生成汇总报告",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-23T00:00:00.000Z",
+  "versionId": "1"
+}
