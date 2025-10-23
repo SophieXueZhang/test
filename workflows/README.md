@@ -6,7 +6,19 @@
 
 ### 1. tshirt-design-generator.json
 
-**主要工作流 - 单个设计生成**
+**主要工作流 - 单个设计生成（保存文件版本）**
+
+### 2. tshirt-design-generator-simple.json
+
+**简化版工作流 - 直接返回Base64数据（推荐）**
+
+> 💡 **推荐使用简化版**：如果遇到文件保存问题，使用此版本。它直接在响应中返回图片的 base64 数据，不依赖文件系统。
+
+---
+
+## 详细说明
+
+### 1. tshirt-design-generator.json - 完整版
 
 **功能**: 接收竞品图片，分析并生成相似设计
 
@@ -20,22 +32,109 @@
 ```
 
 **节点说明**:
-- `接收竞品图片`: Webhook 触发器
-- `分析图片特征`: 使用 GPT-4 Vision 分析设计元素
-- `生成AI提示词`: 将分析结果转换为 Stable Diffusion 提示词
-- `生成设计图片`: 调用 Stability AI API 生成图片
+- `Webhook`: Webhook 触发器
+- `分析图片-GPT4`: 使用 GPT-4 Vision 分析设计元素
+- `生成提示词`: 将分析结果转换为 Stable Diffusion 提示词
+- `生成图片-StabilityAI`: 调用 Stability AI API 生成图片
 - `处理图片数据`: 解析 base64 图片数据
-- `保存到本地`: 保存生成的图片
-- `返回结果`: 返回下载链接
-- `错误处理`: 处理异常情况
+- `保存文件`: 使用 Node.js fs 模块保存图片到 `/data/output/`
+- `返回结果`: 返回文件信息
 
 **配置要求**:
 - OpenAI API 凭证
 - Stability AI API 凭证
 
+**输出响应**:
+```json
+{
+  "success": true,
+  "message": "T恤设计生成成功",
+  "data": {
+    "filename": "tshirt-design-1698123456.png",
+    "seed": 123456,
+    "timestamp": "2025-10-23T12:00:00.000Z"
+  }
+}
+```
+
+**文件保存位置**: `/data/output/tshirt-design-{timestamp}.png`
+
 **Webhook URL**: `http://localhost:5678/webhook/generate-tshirt-design`
 
-### 2. batch-design-generator.json
+---
+
+### 2. tshirt-design-generator-simple.json - 简化版（推荐）
+
+**功能**: 接收竞品图片，分析并生成相似设计，直接返回 Base64 数据
+
+**触发方式**: Webhook
+
+**输入**:
+```json
+{
+  "imageUrl": "https://example.com/tshirt.jpg"
+}
+```
+
+**节点说明**:
+- `Webhook`: Webhook 触发器
+- `分析图片-GPT4`: 使用 GPT-4 Vision 分析设计元素
+- `生成提示词`: 将分析结果转换为 Stable Diffusion 提示词
+- `生成图片-StabilityAI`: 调用 Stability AI API 生成图片
+- `处理图片数据`: 解析图片数据，直接返回 base64
+- `返回结果`: 返回包含 base64 图片数据的 JSON
+
+**优势**:
+- ✅ 不依赖文件系统，避免权限问题
+- ✅ 适合在容器化环境中使用
+- ✅ 可以直接在前端显示图片（data URL）
+- ✅ 更简单，更少出错
+
+**配置要求**:
+- OpenAI API 凭证
+- Stability AI API 凭证
+
+**输出响应**:
+```json
+{
+  "success": true,
+  "message": "T恤设计生成成功",
+  "data": {
+    "filename": "tshirt-design-1698123456.png",
+    "imageBase64": "iVBORw0KGgoAAAANSUhEUgAA...",
+    "mimeType": "image/png",
+    "seed": 123456,
+    "timestamp": "2025-10-23T12:00:00.000Z"
+  }
+}
+```
+
+**使用返回的图片**:
+
+在 HTML 中显示：
+```html
+<img src="data:image/png;base64,{imageBase64}" alt="Generated Design" />
+```
+
+保存到文件（使用 Node.js）：
+```javascript
+const fs = require('fs');
+const buffer = Buffer.from(response.data.imageBase64, 'base64');
+fs.writeFileSync('design.png', buffer);
+```
+
+保存到文件（使用 Python）：
+```python
+import base64
+with open('design.png', 'wb') as f:
+    f.write(base64.b64decode(response['data']['imageBase64']))
+```
+
+**Webhook URL**: `http://localhost:5678/webhook/generate-tshirt-design`
+
+---
+
+### 3. batch-design-generator.json
 
 **批量处理工作流**
 

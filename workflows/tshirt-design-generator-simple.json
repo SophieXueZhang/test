@@ -1,5 +1,5 @@
 {
-  "name": "T恤设计生成器",
+  "name": "T恤设计生成器-简化版",
   "nodes": [
     {
       "parameters": {
@@ -49,7 +49,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 解析GPT-4的分析结果并生成Stable Diffusion提示词\nconst response = $input.first().json;\nlet analysis;\n\ntry {\n  // 尝试解析 GPT-4 返回的内容\n  const content = response.choices[0].message.content;\n  analysis = JSON.parse(content);\n} catch (e) {\n  // 如果解析失败，使用默认值\n  analysis = {\n    style: \"modern minimalist\",\n    colors: [\"black\", \"white\"],\n    elements: [\"graphic design\"],\n    layout: \"centered\",\n    audience: \"casual wear\"\n  };\n}\n\n// 构建详细的提示词\nconst prompt = `Professional t-shirt design, ${analysis.style} style, featuring ${analysis.elements.join(', ')}, color scheme: ${analysis.colors.join(', ')}, ${analysis.layout} layout, for ${analysis.audience}, high quality, 4K, clean background, vector art style, professional mockup`;\n\nconst negativePrompt = `low quality, blurry, pixelated, distorted, watermark, text, signature, bad anatomy, poorly drawn, amateur, messy`;\n\n// 设置生成参数\nreturn [{\n  json: {\n    prompt: prompt,\n    negative_prompt: negativePrompt,\n    analysis: analysis,\n    seed: Math.floor(Math.random() * 999999),\n    steps: 30,\n    cfg_scale: 7,\n    width: 1024,\n    height: 1024,\n    samples: 1\n  }\n}];"
+        "jsCode": "// 解析GPT-4的分析结果并生成Stable Diffusion提示词\nconst response = $input.first().json;\nlet analysis;\n\ntry {\n  const content = response.choices[0].message.content;\n  analysis = JSON.parse(content);\n} catch (e) {\n  analysis = {\n    style: \"modern minimalist\",\n    colors: [\"black\", \"white\"],\n    elements: [\"graphic design\"],\n    layout: \"centered\",\n    audience: \"casual wear\"\n  };\n}\n\n// 构建详细的提示词\nconst prompt = `Professional t-shirt design, ${analysis.style} style, featuring ${analysis.elements.join(', ')}, color scheme: ${analysis.colors.join(', ')}, ${analysis.layout} layout, for ${analysis.audience}, high quality, 4K, clean background, vector art style, professional mockup`;\n\nconst negativePrompt = `low quality, blurry, pixelated, distorted, watermark, text, signature, bad anatomy, poorly drawn, amateur, messy`;\n\nreturn [{\n  json: {\n    prompt: prompt,\n    negative_prompt: negativePrompt,\n    analysis: analysis,\n    seed: Math.floor(Math.random() * 999999),\n    steps: 30,\n    cfg_scale: 7,\n    width: 1024,\n    height: 1024,\n    samples: 1\n  }\n}];"
       },
       "id": "3e3e3e3e-3333-3333-3333-333333333333",
       "name": "生成提示词",
@@ -91,7 +91,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// 处理生成的图片数据\nconst response = $input.first().json;\n\nif (!response.artifacts || response.artifacts.length === 0) {\n  throw new Error('No image generated');\n}\n\nconst artifact = response.artifacts[0];\nconst imageData = artifact.base64;\nconst filename = `tshirt-design-${Date.now()}.png`;\n\nreturn [{\n  json: {\n    filename: filename,\n    imageData: imageData,\n    seed: artifact.seed,\n    finishReason: artifact.finishReason\n  }\n}];"
+        "jsCode": "// 处理生成的图片数据\nconst response = $input.first().json;\n\nif (!response.artifacts || response.artifacts.length === 0) {\n  throw new Error('No image generated');\n}\n\nconst artifact = response.artifacts[0];\nconst imageData = artifact.base64;\nconst filename = `tshirt-design-${Date.now()}.png`;\n\n// 直接返回 base64 数据，不保存到文件系统\nreturn [{\n  json: {\n    filename: filename,\n    imageBase64: imageData,\n    seed: artifact.seed,\n    finishReason: artifact.finishReason,\n    mimeType: 'image/png'\n  }\n}];"
       },
       "id": "3e3e3e3e-5555-5555-5555-555555555555",
       "name": "处理图片数据",
@@ -104,29 +104,16 @@
     },
     {
       "parameters": {
-        "jsCode": "// 使用 Node.js 保存文件\nconst fs = require('fs');\nconst path = require('path');\nconst item = $input.first().json;\n\nconst outputDir = '/data/output';\nconst filePath = path.join(outputDir, item.filename);\n\n// 确保目录存在\nif (!fs.existsSync(outputDir)) {\n  fs.mkdirSync(outputDir, { recursive: true });\n}\n\n// 保存 base64 图片\nconst imageBuffer = Buffer.from(item.imageData, 'base64');\nfs.writeFileSync(filePath, imageBuffer);\n\nreturn [{\n  json: {\n    filename: item.filename,\n    filepath: filePath,\n    seed: item.seed,\n    size: imageBuffer.length\n  }\n}];"
-      },
-      "id": "3e3e3e3e-6666-6666-6666-666666666666",
-      "name": "保存文件",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1350,
-        300
-      ]
-    },
-    {
-      "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"success\": true,\n  \"message\": \"T恤设计生成成功\",\n  \"data\": {\n    \"filename\": \"{{ $json.filename }}\",\n    \"seed\": {{ $json.seed }},\n    \"timestamp\": \"{{ $now.toISO() }}\"\n  }\n}",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"T恤设计生成成功\",\n  \"data\": {\n    \"filename\": \"{{ $json.filename }}\",\n    \"imageBase64\": \"{{ $json.imageBase64 }}\",\n    \"mimeType\": \"{{ $json.mimeType }}\",\n    \"seed\": {{ $json.seed }},\n    \"timestamp\": \"{{ $now.toISO() }}\"\n  }\n}",
         "options": {}
       },
-      "id": "3e3e3e3e-7777-7777-7777-777777777777",
+      "id": "3e3e3e3e-6666-6666-6666-666666666666",
       "name": "返回结果",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1570,
+        1350,
         300
       ]
     }
@@ -177,17 +164,6 @@
       ]
     },
     "处理图片数据": {
-      "main": [
-        [
-          {
-            "node": "保存文件",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "保存文件": {
       "main": [
         [
           {
