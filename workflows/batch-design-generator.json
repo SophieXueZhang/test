@@ -12,11 +12,14 @@
           ]
         }
       },
-      "id": "schedule-trigger",
+      "id": "4e4e4e4e-1111-1111-1111-111111111111",
       "name": "定时触发",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
-      "position": [250, 300]
+      "position": [
+        250,
+        300
+      ]
     },
     {
       "parameters": {
@@ -24,37 +27,61 @@
         "fileSelector": "*.{jpg,jpeg,png,webp}",
         "options": {}
       },
-      "id": "read-files",
-      "name": "读取竞品图片",
+      "id": "4e4e4e4e-2222-2222-2222-222222222222",
+      "name": "读取图片文件",
       "type": "n8n-nodes-base.readBinaryFiles",
       "typeVersion": 1,
-      "position": [470, 300]
+      "position": [
+        470,
+        300
+      ]
     },
     {
       "parameters": {
         "batchSize": 1,
         "options": {}
       },
-      "id": "split-batch",
+      "id": "4e4e4e4e-3333-3333-3333-333333333333",
       "name": "分批处理",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [690, 300]
+      "position": [
+        690,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 将二进制图片转换为 base64\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  if (item.binary && item.binary.data) {\n    const binaryData = item.binary.data;\n    const base64Data = binaryData.data;\n    const extension = binaryData.fileExtension || 'jpg';\n    const filename = binaryData.fileName || 'image';\n    \n    results.push({\n      json: {\n        imageUrl: `data:image/${extension};base64,${base64Data}`,\n        originalFilename: filename\n      }\n    });\n  }\n}\n\nreturn results;"
+      },
+      "id": "4e4e4e4e-4444-4444-4444-444444444444",
+      "name": "转换为Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        910,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.WEBHOOK_URL }}/webhook/generate-tshirt-design",
+        "url": "={{ $env.WEBHOOK_URL || \"http://localhost:5678\" }}/webhook/generate-tshirt-design",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"imageUrl\": \"data:image/{{ $binary.data.fileExtension }};base64,{{ $binary.data.data }}\",\n  \"filename\": \"{{ $binary.data.fileName }}\"\n}",
-        "options": {}
+        "jsonBody": "={\n  \"imageUrl\": \"{{ $json.imageUrl }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
       },
-      "id": "call-workflow",
+      "id": "4e4e4e4e-5555-5555-5555-555555555555",
       "name": "调用生成工作流",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [910, 300]
+      "position": [
+        1130,
+        300
+      ]
     },
     {
       "parameters": {
@@ -67,49 +94,53 @@
           ]
         }
       },
-      "id": "check-success",
-      "name": "检查结果",
+      "id": "4e4e4e4e-6666-6666-6666-666666666666",
+      "name": "检查是否成功",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [1130, 300]
+      "position": [
+        1350,
+        300
+      ]
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "=INSERT INTO designs (original_filename, generated_filename, download_url, seed, created_at) VALUES ('{{ $json.originalFilename }}', '{{ $json.data.filename }}', '{{ $json.data.downloadUrl }}', {{ $json.data.seed }}, NOW())",
-        "options": {}
+        "jsCode": "// 记录成功\nconst item = $input.first().json;\nconst originalFilename = $node[\"转换为Base64\"].json.originalFilename;\n\nreturn [{\n  json: {\n    status: 'success',\n    originalFilename: originalFilename,\n    generatedFilename: item.data?.filename,\n    seed: item.data?.seed,\n    timestamp: item.data?.timestamp || new Date().toISOString()\n  }\n}];"
       },
-      "id": "save-to-db",
-      "name": "保存到数据库",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.2,
-      "position": [1350, 200],
-      "credentials": {
-        "postgres": {
-          "id": "3",
-          "name": "PostgreSQL account"
-        }
-      }
+      "id": "4e4e4e4e-7777-7777-7777-777777777777",
+      "name": "记录成功",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1570,
+        200
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// 记录失败\nconst items = $input.all();\nconst failures = [];\n\nitems.forEach(item => {\n  failures.push({\n    filename: item.json.originalFilename,\n    error: item.json.error,\n    timestamp: new Date().toISOString()\n  });\n});\n\nreturn [{ json: { failures } }];"
+        "jsCode": "// 记录失败\nconst item = $input.first().json;\nconst originalFilename = $node[\"转换为Base64\"].json.originalFilename;\n\nreturn [{\n  json: {\n    status: 'failed',\n    originalFilename: originalFilename,\n    error: item.error || item.message || 'Unknown error',\n    timestamp: new Date().toISOString()\n  }\n}];"
       },
-      "id": "log-failures",
+      "id": "4e4e4e4e-8888-8888-8888-888888888888",
       "name": "记录失败",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1350, 400]
+      "position": [
+        1570,
+        400
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// 汇总统计\nconst allItems = $input.all();\nconst summary = {\n  total: allItems.length,\n  successful: 0,\n  failed: 0,\n  timestamp: new Date().toISOString()\n};\n\nallItems.forEach(item => {\n  if (item.json.success) {\n    summary.successful++;\n  } else {\n    summary.failed++;\n  }\n});\n\nreturn [{ json: summary }];"
+        "jsCode": "// 汇总统计\nconst allItems = $input.all();\nconst summary = {\n  total: allItems.length,\n  successful: 0,\n  failed: 0,\n  details: [],\n  timestamp: new Date().toISOString()\n};\n\nallItems.forEach(item => {\n  if (item.json.status === 'success') {\n    summary.successful++;\n  } else {\n    summary.failed++;\n  }\n  summary.details.push(item.json);\n});\n\nreturn [{ json: summary }];"
       },
-      "id": "generate-summary",
+      "id": "4e4e4e4e-9999-9999-9999-999999999999",
       "name": "生成汇总报告",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1570, 300]
+      "position": [
+        1790,
+        300
+      ]
     }
   ],
   "connections": {
@@ -117,14 +148,14 @@
       "main": [
         [
           {
-            "node": "读取竞品图片",
+            "node": "读取图片文件",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "读取竞品图片": {
+    "读取图片文件": {
       "main": [
         [
           {
@@ -139,6 +170,17 @@
       "main": [
         [
           {
+            "node": "转换为Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "转换为Base64": {
+      "main": [
+        [
+          {
             "node": "调用生成工作流",
             "type": "main",
             "index": 0
@@ -150,18 +192,18 @@
       "main": [
         [
           {
-            "node": "检查结果",
+            "node": "检查是否成功",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "检查结果": {
+    "检查是否成功": {
       "main": [
         [
           {
-            "node": "保存到数据库",
+            "node": "记录成功",
             "type": "main",
             "index": 0
           }
@@ -175,7 +217,7 @@
         ]
       ]
     },
-    "保存到数据库": {
+    "记录成功": {
       "main": [
         [
           {
@@ -204,7 +246,7 @@
   },
   "staticData": null,
   "tags": [],
-  "triggerCount": 1,
+  "triggerCount": 0,
   "updatedAt": "2025-10-23T00:00:00.000Z",
-  "versionId": "1"
+  "versionId": ""
 }
