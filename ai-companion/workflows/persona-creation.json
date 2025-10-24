@@ -1,0 +1,272 @@
+{
+  "name": "AI情感陪伴 - 人格创建工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "persona/create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "接收人格创建请求",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "persona-creation-webhook",
+      "notes": "接收用户提交的人格创建数据"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json.body;\n\n// 验证必填字段\nconst required = ['user_id', 'persona_type', 'persona_name'];\nconst missing = required.filter(field => !input[field]);\n\nif (missing.length > 0) {\n  throw new Error(`缺少必填字段: ${missing.join(', ')}`);\n}\n\n// 标准化数据\nreturn {\n  json: {\n    user_id: input.user_id,\n    persona_type: input.persona_type,\n    persona_name: input.persona_name,\n    relationship: input.relationship || '',\n    characteristics: input.characteristics || {},\n    interests: input.interests || [],\n    voice_sample_url: input.voice_sample_url || null,\n    photos: input.photos || [],\n    chat_history: input.chat_history || null\n  }\n};"
+      },
+      "id": "validate-input",
+      "name": "验证输入数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst personaType = data.persona_type;\n\n// 根据人格类型生成基础Prompt模板\nconst templates = {\n  parent: `你是用户已故的${data.relationship}（${data.persona_name}），一个温暖慈爱的长辈。\n\n## 你的角色特征\n- 总是关心用户的健康、饮食和生活起居\n- 说话时带有长辈特有的叮嘱和关怀\n- 会回忆过去的美好时光\n- 用温柔但有时略带唠叨的语气说话\n\n## 说话风格\n- 称呼用户为"孩子"或昵称\n- 常用词：\"记得\"、\"要注意\"、\"别忘了\"\n- 关心话题：健康、饮食、天气、孙辈\n\n## 重要提醒\n- 保持慈爱温柔的形象\n- 给予情感支持和生活建议\n- 回忆共同的美好记忆\n- 表达对用户的思念和关爱`,\n\n  child: `你是用户的${data.relationship}（${data.persona_name}），一个孝顺懂事的晚辈。\n\n## 你的角色特征\n- 关心父母的身体健康和心情\n- 主动询问日常生活情况\n- 分享工作和生活中的趣事\n- 用亲切轻松的语气交流\n\n## 说话风格\n- 称呼用户为\"爸\"、\"妈\"或其他亲昵称呼\n- 常用词：\"最近怎么样\"、\"要照顾好自己\"、\"我很想你\"\n- 关心话题：健康、饮食、心情、家里的事\n\n## 重要提醒\n- 表达对父母的关心和思念\n- 主动了解父母的需求\n- 分享积极正面的生活内容\n- 避免让父母担心`,\n\n  partner: `你是用户的${data.relationship}（${data.persona_name}），一个体贴温柔的伴侣。\n\n## 你的角色特征\n- 相互扶持、理解和陪伴\n- 分享日常生活的点点滴滴\n- 回忆共同经历的美好时光\n- 用亲密温暖的语气交流\n\n## 说话风格\n- 使用亲密的称呼\n- 常用词：\"我们\"、\"一起\"、\"陪着你\"\n- 关心话题：生活、回忆、情感、未来\n\n## 重要提醒\n- 营造陪伴和温暖的氛围\n- 回忆共同的美好记忆\n- 给予情感支持和理解\n- 表达爱意和关怀`,\n\n  idol: `你是用户喜爱的偶像明星${data.persona_name}。\n\n## 你的角色特征\n- 保持偶像的公众形象和风格\n- 分享音乐、艺术和生活感悟\n- 给予粉丝温暖和鼓励\n- 用亲切但保持距离感的语气\n\n## 说话风格\n- 使用偶像常用的语气和表达\n- 提及代表作品和经典语录\n- 关心话题：音乐、艺术、生活态度\n\n## 重要提醒\n- 保持偶像的人设和风格\n- 给予正面的鼓励和建议\n- 分享积极的人生态度\n- 避免过度亲密或不当内容`,\n\n  friend: `你是用户的老朋友${data.persona_name}，一个知心的伙伴。\n\n## 你的角色特征\n- 平等、真诚、互相理解\n- 可以倾诉烦恼和分享快乐\n- 回忆共同的经历\n- 用轻松自然的语气交流\n\n## 说话风格\n- 使用朋友间的称呼\n- 常用词：\"咱们\"、\"你说\"、\"我觉得\"\n- 关心话题：生活、兴趣、往事、心情\n\n## 重要提醒\n- 保持朋友间的平等和真诚\n- 给予理解和支持\n- 分享生活感悟\n- 避免说教或过度关心`\n};\n\nconst basePrompt = templates[personaType] || templates.friend;\n\nreturn {\n  json: {\n    ...data,\n    base_prompt: basePrompt\n  }\n};"
+      },
+      "id": "generate-base-prompt",
+      "name": "生成基础Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.characteristics && Object.keys($json.characteristics).length > 0 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-has-characteristics",
+      "name": "检查是否有个性化特征",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "modelId": "gpt-4-turbo-preview",
+        "messages": {
+          "values": [
+            {
+              "role": "user",
+              "content": "基于以下信息，优化AI人格的系统Prompt，使其更加个性化和真实：\n\n## 基础Prompt\n{{ $node[\"生成基础Prompt\"].json.base_prompt }}\n\n## 个性化特征\n{{ JSON.stringify($json.characteristics, null, 2) }}\n\n## 兴趣爱好\n{{ $json.interests.join(', ') }}\n\n请生成一个完整的、个性化的系统Prompt，保持原有结构，但融入这些个性化信息。"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 1000
+        }
+      },
+      "id": "personalize-prompt",
+      "name": "个性化Prompt",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-cred",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.voice_sample_url }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-voice-sample",
+      "name": "检查是否有语音样本",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/voice/analyze",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"audio_url\": \"{{ $json.voice_sample_url }}\"\n}"
+      },
+      "id": "analyze-voice",
+      "name": "分析语音特征",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 200],
+      "notes": "分析语速、音调等特征"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst voiceAnalysis = $node[\"分析语音特征\"]?.json || null;\n\n// 根据语音分析结果选择合适的TTS语音\nlet voiceModel = 'nova'; // 默认\nlet voiceSpeed = 1.0;\nlet voiceDialect = null;\n\nif (voiceAnalysis) {\n  // 根据音调选择语音模型\n  if (voiceAnalysis.pitch === 'high') {\n    voiceModel = 'shimmer'; // 较高音\n  } else if (voiceAnalysis.pitch === 'low') {\n    voiceModel = 'onyx'; // 较低音\n  }\n\n  // 调整语速\n  voiceSpeed = voiceAnalysis.speed || 1.0;\n  voiceDialect = voiceAnalysis.dialect;\n}\n\nreturn {\n  json: {\n    ...data,\n    voice_model_id: voiceModel,\n    voice_speed: voiceSpeed,\n    voice_dialect: voiceDialect\n  }\n};"
+      },
+      "id": "configure-voice",
+      "name": "配置语音参数",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.photos && $json.photos.length > 0 }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-photos",
+      "name": "检查是否有照片",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/avatar/generate",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"photos\": {{ JSON.stringify($json.photos) }},\n  \"persona_name\": \"{{ $json.persona_name }}\"\n}"
+      },
+      "id": "generate-avatar",
+      "name": "生成虚拟形象",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2050, 200],
+      "notes": "使用AI生成虚拟形象"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "ai_personas",
+        "columns": "user_id, persona_name, persona_type, relationship, personality_traits, speaking_style, interests, prompt_template, voice_model_id, voice_speed, voice_dialect, avatar_url",
+        "additionalFields": {
+          "returning": "*"
+        }
+      },
+      "id": "save-persona",
+      "name": "保存人格到数据库",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2250, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-cred",
+          "name": "PostgreSQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const persona = $input.first().json;\n\n// 生成初始记忆\nconst initialMemories = [\n  {\n    memory_type: 'preference',\n    content: `用户创建了${persona.persona_type}类型的AI人格，名字叫${persona.persona_name}`,\n    importance_score: 0.9\n  }\n];\n\n// 如果有兴趣爱好，添加到记忆中\nif (persona.interests && persona.interests.length > 0) {\n  initialMemories.push({\n    memory_type: 'preference',\n    content: `${persona.persona_name}的兴趣爱好包括：${persona.interests.join('、')}`,\n    importance_score: 0.8\n  });\n}\n\nreturn {\n  json: {\n    persona_id: persona.persona_id,\n    user_id: persona.user_id,\n    memories: initialMemories\n  }\n};"
+      },
+      "id": "create-initial-memories",
+      "name": "创建初始记忆",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://api:8000/api/memory-batch-create",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={{ JSON.stringify($json) }}"
+      },
+      "id": "save-memories",
+      "name": "保存初始记忆",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2650, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"persona_id\": \"{{ $node[\"保存人格到数据库\"].json.persona_id }}\",\n  \"persona_name\": \"{{ $node[\"保存人格到数据库\"].json.persona_name }}\",\n  \"message\": \"AI人格创建成功！\",\n  \"avatar_url\": \"{{ $node[\"保存人格到数据库\"].json.avatar_url || '' }}\",\n  \"voice_configured\": {{ $node[\"保存人格到数据库\"].json.voice_model_id ? true : false }}\n}"
+      },
+      "id": "response",
+      "name": "返回创建结果",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2850, 300]
+    }
+  ],
+  "connections": {
+    "接收人格创建请求": {
+      "main": [[{"node": "验证输入数据", "type": "main", "index": 0}]]
+    },
+    "验证输入数据": {
+      "main": [[{"node": "生成基础Prompt", "type": "main", "index": 0}]]
+    },
+    "生成基础Prompt": {
+      "main": [[{"node": "检查是否有个性化特征", "type": "main", "index": 0}]]
+    },
+    "检查是否有个性化特征": {
+      "main": [
+        [{"node": "个性化Prompt", "type": "main", "index": 0}],
+        [{"node": "检查是否有语音样本", "type": "main", "index": 0}]
+      ]
+    },
+    "个性化Prompt": {
+      "main": [[{"node": "检查是否有语音样本", "type": "main", "index": 0}]]
+    },
+    "检查是否有语音样本": {
+      "main": [
+        [{"node": "分析语音特征", "type": "main", "index": 0}],
+        [{"node": "配置语音参数", "type": "main", "index": 0}]
+      ]
+    },
+    "分析语音特征": {
+      "main": [[{"node": "配置语音参数", "type": "main", "index": 0}]]
+    },
+    "配置语音参数": {
+      "main": [[{"node": "检查是否有照片", "type": "main", "index": 0}]]
+    },
+    "检查是否有照片": {
+      "main": [
+        [{"node": "生成虚拟形象", "type": "main", "index": 0}],
+        [{"node": "保存人格到数据库", "type": "main", "index": 0}]
+      ]
+    },
+    "生成虚拟形象": {
+      "main": [[{"node": "保存人格到数据库", "type": "main", "index": 0}]]
+    },
+    "保存人格到数据库": {
+      "main": [[{"node": "创建初始记忆", "type": "main", "index": 0}]]
+    },
+    "创建初始记忆": {
+      "main": [[{"node": "保存初始记忆", "type": "main", "index": 0}]]
+    },
+    "保存初始记忆": {
+      "main": [[{"node": "返回创建结果", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-24T00:00:00.000Z",
+  "versionId": "1"
+}

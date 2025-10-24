@@ -1,0 +1,368 @@
+{
+  "name": "AI情感陪伴 - 对话处理工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "conversation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "接收用户消息",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "conversation-webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.content_type }}",
+              "operation": "equals",
+              "value2": "audio"
+            }
+          ]
+        }
+      },
+      "id": "check-content-type",
+      "name": "检查消息类型",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"file\": \"{{ $json.body.audio_url }}\",\n  \"model\": \"whisper-1\",\n  \"language\": \"zh\"\n}"
+      },
+      "id": "speech-to-text",
+      "name": "语音识别(ASR)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [650, 200],
+      "notes": "使用OpenAI Whisper将语音转文字"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT u.*, p.* FROM users u JOIN ai_personas p ON u.user_id = p.user_id WHERE u.user_id = '{{ $json.body.user_id }}' AND p.persona_id = '{{ $json.body.persona_id }}' LIMIT 1"
+      },
+      "id": "get-user-persona",
+      "name": "获取用户和人格",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-cred",
+          "name": "PostgreSQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/emotion-analysis",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"text\": \"{{ $json.text || $json.body.content }}\"\n}"
+      },
+      "id": "emotion-analysis",
+      "name": "情感分析",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 300],
+      "notes": "分析用户情绪"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.risk_score }}",
+              "operation": "larger",
+              "value2": 0.7
+            }
+          ]
+        }
+      },
+      "id": "check-risk-level",
+      "name": "检查风险等级",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "emotion_tracking",
+        "columns": "user_id, emotion, intensity, risk_level, trigger_words, message_id",
+        "additionalFields": {
+          "values": "={{ $json.body.user_id }}, {{ $json.emotion }}, {{ $json.intensity }}, critical, {{ JSON.stringify($json.trigger_words) }}, {{ $json.message_id }}"
+        }
+      },
+      "id": "log-high-risk",
+      "name": "记录高风险情绪",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 200],
+      "credentials": {
+        "postgres": "postgres-cred"
+      }
+    },
+    {
+      "parameters": {
+        "channel": "emergency-alerts",
+        "text": "⚠️ 高风险情绪警报！\n用户：{{ $node[\"获取用户和人格\"].json.name }}\n情绪：{{ $json.emotion }}\n强度：{{ $json.intensity }}\n触发词：{{ $json.trigger_words.join(', ') }}\n\n请立即关注！"
+      },
+      "id": "send-alert",
+      "name": "发送紧急警报",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [1650, 200],
+      "notes": "通知管理员或家属"
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/memory-search",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"user_id\": \"{{ $json.body.user_id }}\",\n  \"query\": \"{{ $json.text || $json.body.content }}\",\n  \"top_k\": 5\n}"
+      },
+      "id": "search-memories",
+      "name": "检索相关记忆(RAG)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 400],
+      "notes": "使用向量数据库检索相关记忆"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM messages WHERE user_id = '{{ $json.body.user_id }}' ORDER BY created_at DESC LIMIT 10"
+      },
+      "id": "get-history",
+      "name": "获取对话历史",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 400],
+      "credentials": {
+        "postgres": "postgres-cred"
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const persona = $node[\"获取用户和人格\"].json;\nconst emotion = $node[\"情感分析\"].json;\nconst memories = $node[\"检索相关记忆(RAG)\"].json.memories || [];\nconst history = $node[\"获取对话历史\"].json || [];\nconst userMessage = $input.first().json.text || $input.first().json.body.content;\n\n// 构建系统Prompt\nconst systemPrompt = `${persona.prompt_template}\n\n## 你的性格特征\n${JSON.stringify(persona.personality_traits, null, 2)}\n\n## 说话风格\n${JSON.stringify(persona.speaking_style, null, 2)}\n\n## 相关记忆\n${memories.map(m => `- ${m.content}`).join('\\n')}\n\n## 用户当前情绪\n情绪：${emotion.emotion}，强度：${emotion.intensity}\n\n## 重要提醒\n1. 保持人格一致性，使用人物特有的说话方式\n2. 关注用户情绪，给予恰当的情感支持\n3. 引用过去的记忆，增强真实感\n4. 回答简洁温暖，符合中老年人沟通习惯\n5. 避免过长回复，每次50-100字为宜\n`;\n\n// 构建对话历史\nconst messages = [\n  { role: \"system\", content: systemPrompt }\n];\n\n// 添加最近对话历史\nhistory.reverse().forEach(msg => {\n  messages.push({\n    role: msg.sender_type === 'user' ? 'user' : 'assistant',\n    content: msg.content\n  });\n});\n\n// 添加当前用户消息\nmessages.push({\n  role: \"user\",\n  content: userMessage\n});\n\nreturn {\n  json: {\n    messages: messages,\n    max_tokens: 200,\n    temperature: persona.temperature || 0.7\n  }\n};"
+      },
+      "id": "build-prompt",
+      "name": "构建Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 400]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "modelId": "={{ $node[\"获取用户和人格\"].json.model_name || 'gpt-4-turbo-preview' }}",
+        "messages": "={{ $json.messages }}",
+        "options": {
+          "temperature": "={{ $json.temperature }}",
+          "maxTokens": "={{ $json.max_tokens }}"
+        }
+      },
+      "id": "gpt-generate",
+      "name": "GPT生成回复",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1850, 400],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-cred",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $node[\"获取用户和人格\"].json.voice_model_id ? true : false }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-voice-enabled",
+      "name": "检查是否启用语音",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2050, 400]
+    },
+    {
+      "parameters": {
+        "url": "https://api.openai.com/v1/audio/speech",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"model\": \"tts-1\",\n  \"input\": \"{{ $node[\"GPT生成回复\"].json.choices[0].message.content }}\",\n  \"voice\": \"{{ $node[\"获取用户和人格\"].json.voice_model_id || 'nova' }}\",\n  \"speed\": {{ $node[\"获取用户和人格\"].json.voice_speed || 1.0 }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "text-to-speech",
+      "name": "文字转语音(TTS)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2250, 300],
+      "notes": "生成AI回复的语音"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucket": "ai-companion-audio",
+        "fileName": "={{ $now.format('YYYY-MM-DD') }}/{{ $json.message_id }}.mp3",
+        "binaryData": true
+      },
+      "id": "upload-audio",
+      "name": "上传音频到MinIO",
+      "type": "n8n-nodes-base.minio",
+      "typeVersion": 1,
+      "position": [2450, 300],
+      "credentials": {
+        "minio": {
+          "id": "minio-cred",
+          "name": "MinIO account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "messages",
+        "columns": "session_id, user_id, sender_type, content_type, content, detected_emotion, emotion_intensity, audio_url, token_count",
+        "additionalFields": {
+          "returning": "*"
+        }
+      },
+      "id": "save-message",
+      "name": "保存对话消息",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2650, 400],
+      "credentials": {
+        "postgres": "postgres-cred"
+      },
+      "notes": "保存用户消息和AI回复"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"message_id\": \"{{ $json.message_id }}\",\n  \"content\": \"{{ $node[\"GPT生成回复\"].json.choices[0].message.content }}\",\n  \"audio_url\": \"{{ $json.audio_url || '' }}\",\n  \"emotion\": \"{{ $node[\"情感分析\"].json.emotion }}\",\n  \"timestamp\": \"{{ $now.toISO() }}\"\n}"
+      },
+      "id": "response",
+      "name": "返回响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2850, 400]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8000/api/memory-create",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"user_id\": \"{{ $json.body.user_id }}\",\n  \"content\": \"{{ $node[\"GPT生成回复\"].json.choices[0].message.content }}\",\n  \"message_id\": \"{{ $json.message_id }}\"\n}"
+      },
+      "id": "create-memory",
+      "name": "创建新记忆",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [2650, 550],
+      "notes": "异步处理，不阻塞主流程"
+    }
+  ],
+  "connections": {
+    "接收用户消息": {
+      "main": [[{"node": "检查消息类型", "type": "main", "index": 0}]]
+    },
+    "检查消息类型": {
+      "main": [
+        [{"node": "语音识别(ASR)", "type": "main", "index": 0}],
+        [{"node": "获取用户和人格", "type": "main", "index": 0}]
+      ]
+    },
+    "语音识别(ASR)": {
+      "main": [[{"node": "获取用户和人格", "type": "main", "index": 0}]]
+    },
+    "获取用户和人格": {
+      "main": [[{"node": "情感分析", "type": "main", "index": 0}]]
+    },
+    "情感分析": {
+      "main": [[{"node": "检查风险等级", "type": "main", "index": 0}]]
+    },
+    "检查风险等级": {
+      "main": [
+        [{"node": "记录高风险情绪", "type": "main", "index": 0}],
+        [{"node": "检索相关记忆(RAG)", "type": "main", "index": 0}]
+      ]
+    },
+    "记录高风险情绪": {
+      "main": [[{"node": "发送紧急警报", "type": "main", "index": 0}]]
+    },
+    "发送紧急警报": {
+      "main": [[{"node": "检索相关记忆(RAG)", "type": "main", "index": 0}]]
+    },
+    "检索相关记忆(RAG)": {
+      "main": [[{"node": "获取对话历史", "type": "main", "index": 0}]]
+    },
+    "获取对话历史": {
+      "main": [[{"node": "构建Prompt", "type": "main", "index": 0}]]
+    },
+    "构建Prompt": {
+      "main": [[{"node": "GPT生成回复", "type": "main", "index": 0}]]
+    },
+    "GPT生成回复": {
+      "main": [[{"node": "检查是否启用语音", "type": "main", "index": 0}]]
+    },
+    "检查是否启用语音": {
+      "main": [
+        [{"node": "文字转语音(TTS)", "type": "main", "index": 0}],
+        [{"node": "保存对话消息", "type": "main", "index": 0}]
+      ]
+    },
+    "文字转语音(TTS)": {
+      "main": [[{"node": "上传音频到MinIO", "type": "main", "index": 0}]]
+    },
+    "上传音频到MinIO": {
+      "main": [[{"node": "保存对话消息", "type": "main", "index": 0}]]
+    },
+    "保存对话消息": {
+      "main": [
+        [
+          {"node": "返回响应", "type": "main", "index": 0},
+          {"node": "创建新记忆", "type": "main", "index": 0}
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-24T00:00:00.000Z",
+  "versionId": "1"
+}

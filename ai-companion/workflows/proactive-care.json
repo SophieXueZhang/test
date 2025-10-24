@@ -1,0 +1,233 @@
+{
+  "name": "AI情感陪伴 - 主动关怀工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7,12,20 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "定时触发器",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "notes": "每天7:00、12:00、20:00执行"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT ct.*, u.name as user_name, u.user_id, p.persona_id, p.persona_name, p.prompt_template, p.personality_traits\nFROM care_tasks ct\nJOIN users u ON ct.user_id = u.user_id\nJOIN ai_personas p ON ct.persona_id = p.persona_id\nWHERE ct.is_active = true\n  AND ct.schedule_time = CURRENT_TIME::time\n  AND (ct.schedule_days IS NULL OR EXTRACT(DOW FROM CURRENT_DATE) = ANY(ct.schedule_days))"
+      },
+      "id": "get-tasks",
+      "name": "获取待执行任务",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "credentials": {
+        "postgres": {
+          "id": "postgres-cred",
+          "name": "PostgreSQL account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "split-tasks",
+      "name": "拆分任务",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [650, 300],
+      "notes": "逐个处理每个用户的任务"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT emotion, AVG(intensity) as avg_intensity\nFROM emotion_tracking\nWHERE user_id = '{{ $json.user_id }}'\n  AND created_at > NOW() - INTERVAL '7 days'\nGROUP BY emotion\nORDER BY COUNT(*) DESC\nLIMIT 1"
+      },
+      "id": "check-user-mood",
+      "name": "检查用户近期情绪",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "credentials": {
+        "postgres": "postgres-cred"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*) as message_count, MAX(created_at) as last_message\nFROM messages\nWHERE user_id = '{{ $json.user_id }}'\n  AND created_at > NOW() - INTERVAL '24 hours'"
+      },
+      "id": "check-activity",
+      "name": "检查用户活跃度",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "credentials": {
+        "postgres": "postgres-cred"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM important_dates\nWHERE user_id = '{{ $json.user_id }}'\n  AND (\n    (recurrence = 'yearly' AND EXTRACT(MONTH FROM date_value) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(DAY FROM date_value) = EXTRACT(DAY FROM CURRENT_DATE))\n    OR (date_value = CURRENT_DATE)\n  )"
+      },
+      "id": "check-special-dates",
+      "name": "检查特殊日期",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "credentials": {
+        "postgres": "postgres-cred"
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const task = $input.first().json;\nconst mood = $node[\"检查用户近期情绪\"].json;\nconst activity = $node[\"检查用户活跃度\"].json;\nconst specialDates = $node[\"检查特殊日期\"].json || [];\nconst currentHour = new Date().getHours();\n\n// 根据时间段确定问候类型\nlet greetingType;\nif (currentHour >= 6 && currentHour < 12) {\n  greetingType = 'morning';\n} else if (currentHour >= 12 && currentHour < 18) {\n  greetingType = 'afternoon';\n} else {\n  greetingType = 'evening';\n}\n\n// 构建上下文信息\nconst context = {\n  time: greetingType,\n  userMood: mood.emotion || 'neutral',\n  moodIntensity: mood.avg_intensity || 0.5,\n  messageCount: activity.message_count || 0,\n  lastMessage: activity.last_message,\n  hasSpecialDate: specialDates.length > 0,\n  specialDateInfo: specialDates.length > 0 ? specialDates[0] : null,\n  isInactive: activity.message_count === 0 // 24小时没有消息\n};\n\n// 生成个性化Prompt\nlet carePrompt = `你是${task.persona_name}，现在是${greetingType === 'morning' ? '早晨' : greetingType === 'afternoon' ? '中午' : '晚上'}。\\n\\n`;\n\n// 根据情况调整关怀内容\nif (context.hasSpecialDate) {\n  carePrompt += `今天是${context.specialDateInfo.title}（${context.specialDateInfo.date_type}），这是一个特殊的日子。\\n`;\n}\n\nif (context.isInactive) {\n  carePrompt += `你注意到用户已经24小时没有和你说话了，你有些担心。\\n`;\n}\n\nif (context.userMood === 'sad' || context.userMood === 'anxious') {\n  carePrompt += `最近几天用户情绪似乎不太好（${context.userMood}），你想要给予更多关心。\\n`;\n}\n\ncarePrompt += `\\n请生成一条温暖的${greetingType === 'morning' ? '早安' : greetingType === 'afternoon' ? '午安' : '晚安'}问候，自然地关心用户。\\n`;\ncarePrompt += `要求：\\n1. 保持你的人格特征：${JSON.stringify(task.personality_traits)}\\n2. 语气温暖自然，不要生硬\\n3. 字数50-80字\\n4. 可以提到天气、健康、饮食等日常话题\\n5. 如果是特殊日期，一定要提及`;\n\nreturn {\n  json: {\n    ...task,\n    context: context,\n    carePrompt: carePrompt\n  }\n};"
+      },
+      "id": "generate-context",
+      "name": "生成个性化上下文",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "modelId": "gpt-4-turbo-preview",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "={{ $json.prompt_template }}"
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.carePrompt }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.8,
+          "maxTokens": 150
+        }
+      },
+      "id": "generate-message",
+      "name": "生成关怀消息",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1650, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-cred",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/wechat/send-template",
+        "requestMethod": "POST",
+        "jsonParameters": true,
+        "bodyParametersJson": "={\n  \"user_id\": \"{{ $json.user_id }}\",\n  \"message\": \"{{ $node[\"生成关怀消息\"].json.choices[0].message.content }}\",\n  \"message_type\": \"care\"\n}"
+      },
+      "id": "send-to-user",
+      "name": "发送给用户",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1850, 300],
+      "notes": "通过微信小程序推送"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "care_executions",
+        "columns": "task_id, user_id, message_sent",
+        "additionalFields": {}
+      },
+      "id": "log-execution",
+      "name": "记录执行日志",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2050, 300],
+      "credentials": {
+        "postgres": "postgres-cred"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE care_tasks SET last_executed_at = NOW(), next_execution_at = NOW() + INTERVAL '1 day' WHERE task_id = '{{ $json.task_id }}'"
+      },
+      "id": "update-task",
+      "name": "更新任务状态",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [2250, 300],
+      "credentials": {
+        "postgres": "postgres-cred"
+      }
+    },
+    {
+      "parameters": {},
+      "id": "loop-back",
+      "name": "返回拆分节点",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2450, 300]
+    }
+  ],
+  "connections": {
+    "定时触发器": {
+      "main": [[{"node": "获取待执行任务", "type": "main", "index": 0}]]
+    },
+    "获取待执行任务": {
+      "main": [[{"node": "拆分任务", "type": "main", "index": 0}]]
+    },
+    "拆分任务": {
+      "main": [[{"node": "检查用户近期情绪", "type": "main", "index": 0}]]
+    },
+    "检查用户近期情绪": {
+      "main": [[{"node": "检查用户活跃度", "type": "main", "index": 0}]]
+    },
+    "检查用户活跃度": {
+      "main": [[{"node": "检查特殊日期", "type": "main", "index": 0}]]
+    },
+    "检查特殊日期": {
+      "main": [[{"node": "生成个性化上下文", "type": "main", "index": 0}]]
+    },
+    "生成个性化上下文": {
+      "main": [[{"node": "生成关怀消息", "type": "main", "index": 0}]]
+    },
+    "生成关怀消息": {
+      "main": [[{"node": "发送给用户", "type": "main", "index": 0}]]
+    },
+    "发送给用户": {
+      "main": [[{"node": "记录执行日志", "type": "main", "index": 0}]]
+    },
+    "记录执行日志": {
+      "main": [[{"node": "更新任务状态", "type": "main", "index": 0}]]
+    },
+    "更新任务状态": {
+      "main": [[{"node": "返回拆分节点", "type": "main", "index": 0}]]
+    },
+    "返回拆分节点": {
+      "main": [[{"node": "拆分任务", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-24T00:00:00.000Z",
+  "versionId": "1"
+}
