@@ -102,6 +102,18 @@ services:
       - yongban-network
     restart: unless-stopped
 
+  # Nginx前端服务
+  frontend:
+    image: nginx:alpine
+    container_name: yongban-frontend
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    networks:
+      - yongban-network
+    restart: unless-stopped
+
   # Celery Worker（异步任务）
   celery-worker:
     build:

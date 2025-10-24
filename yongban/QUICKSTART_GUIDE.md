@@ -40,11 +40,12 @@ docker-compose ps
 # 应该看到所有服务都是 "Up" 状态
 ```
 
-### 步骤4: 访问API文档
+### 步骤4: 访问界面
 
 打开浏览器访问：
 
-- **API交互文档**: http://localhost:8000/docs
+- **前端界面**: http://localhost:8080 ⭐️ (推荐，老年人友好界面)
+- **API交互文档**: http://localhost:8000/docs (开发者使用)
 - **健康检查**: http://localhost:8000/health
 
 ---

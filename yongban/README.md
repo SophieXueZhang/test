@@ -77,6 +77,7 @@ docker-compose up -d
 
 服务启动后，可访问：
 
+- **前端界面**: http://localhost:8080 ⭐️ (老年人友好界面)
 - API文档: http://localhost:8000/docs
 - MinIO控制台: http://localhost:9001
 - Qdrant控制台: http://localhost:6333/dashboard
