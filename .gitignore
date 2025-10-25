@@ -1,65 +1,57 @@
-# Environment variables
+# 环境变量文件（包含密钥）
 .env
-.env.local
-.env.*.local
 
-# n8n data
-.n8n/
-n8n_data/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Database
-postgres_data/
-*.db
-*.sqlite
-
-# Redis
-redis_data/
-dump.rdb
-
-# MinIO/Storage
-minio_data/
-data/output/*
-!data/output/.gitkeep
-data/uploads/*
-!data/uploads/.gitkeep
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# OS
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
+# 虚拟环境
+venv/
+ENV/
+env/
 
 # IDE
 .vscode/
 .idea/
-*.sublime-*
+*.swp
+*.swo
+*~
 
-# Temporary files
-tmp/
-temp/
+# 日志
+logs/
+*.log
+
+# 数据库
+*.db
+*.sqlite3
+
+# Docker volumes
+data/
+uploads/
+output/
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 临时文件
 *.tmp
-
-# Node modules (if using custom nodes)
-node_modules/
-package-lock.json
-yarn.lock
-
-# Python (if using custom scripts)
-__pycache__/
-*.py[cod]
-*$py.class
-.Python
-venv/
-env/
-ENV/
-
-# Backups
 *.bak
-*.backup
