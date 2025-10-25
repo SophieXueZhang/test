@@ -1,0 +1,498 @@
+/* 永伴 - 老年人友好样式 */
+
+/* 全局样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-color: #1890ff;
+    --primary-hover: #0066cc;
+    --secondary-color: #52c41a;
+    --danger-color: #ff4d4f;
+    --text-color: #000000;
+    --text-secondary: #555555;
+    --bg-color: #f5f5f5;
+    --card-bg: #ffffff;
+    --border-color: #d9d9d9;
+}
+
+body {
+    font-family: "Microsoft YaHei", "SimHei", Arial, sans-serif;
+    font-size: 20px;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* 页面容器 */
+.page {
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.page.hidden {
+    display: none;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* Logo */
+.logo {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.logo h1 {
+    font-size: 56px;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.logo .subtitle {
+    font-size: 24px;
+    color: var(--text-secondary);
+}
+
+/* 卡片 */
+.card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 40px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+/* 页面标题 */
+.page-title {
+    font-size: 36px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--text-color);
+}
+
+/* 表单组 */
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: var(--text-color);
+}
+
+/* 输入框 */
+.input-large {
+    width: 100%;
+    padding: 20px;
+    font-size: 22px;
+    border: 3px solid var(--border-color);
+    border-radius: 12px;
+    outline: none;
+    transition: all 0.3s;
+}
+
+.input-large:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(24, 144, 255, 0.1);
+}
+
+.textarea-large {
+    resize: vertical;
+    min-height: 120px;
+    font-family: inherit;
+}
+
+/* 按钮 */
+.btn {
+    padding: 22px 40px;
+    font-size: 24px;
+    font-weight: bold;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+    outline: none;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-large {
+    width: 100%;
+    min-height: 70px;
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--primary-hover);
+}
+
+.btn-secondary {
+    background: white;
+    color: var(--primary-color);
+    border: 3px solid var(--primary-color);
+}
+
+.btn-secondary:hover {
+    background: #f0f8ff;
+}
+
+.btn-back {
+    background: white;
+    color: var(--text-color);
+    border: 2px solid var(--border-color);
+    padding: 15px 30px;
+    font-size: 20px;
+    margin-right: 15px;
+}
+
+.btn-logout {
+    background: var(--danger-color);
+    color: white;
+    padding: 15px 30px;
+    font-size: 20px;
+}
+
+/* 分隔线 */
+.divider {
+    margin: 30px 0;
+    text-align: center;
+    position: relative;
+}
+
+.divider::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 2px;
+    background: var(--border-color);
+}
+
+.divider span {
+    position: relative;
+    background: var(--card-bg);
+    padding: 0 20px;
+    font-size: 20px;
+    color: var(--text-secondary);
+}
+
+/* 头部 */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    background: var(--card-bg);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.header h1 {
+    font-size: 32px;
+    flex: 1;
+    text-align: center;
+}
+
+/* 欢迎卡片 */
+.welcome-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 40px;
+    border-radius: 16px;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.welcome-card h2 {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+.welcome-text {
+    font-size: 22px;
+    opacity: 0.9;
+}
+
+/* 角色列表 */
+.companions-list {
+    margin-bottom: 30px;
+}
+
+.companion-card {
+    background: var(--card-bg);
+    border: 3px solid var(--border-color);
+    border-radius: 16px;
+    padding: 30px;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.companion-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(24, 144, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.companion-info h3 {
+    font-size: 28px;
+    margin-bottom: 8px;
+    color: var(--text-color);
+}
+
+.companion-info p {
+    font-size: 20px;
+    color: var(--text-secondary);
+}
+
+.companion-badge {
+    background: var(--primary-color);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 18px;
+}
+
+.btn-create {
+    background: var(--secondary-color);
+}
+
+.btn-create:hover {
+    background: #3ba315;
+}
+
+/* 聊天容器 */
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 100px);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--bg-color);
+}
+
+/* 消息气泡 */
+.message {
+    margin-bottom: 25px;
+    display: flex;
+    flex-direction: column;
+}
+
+.message.user {
+    align-items: flex-end;
+}
+
+.message.assistant {
+    align-items: flex-start;
+}
+
+.message-header {
+    font-size: 18px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    padding: 0 10px;
+}
+
+.message-bubble {
+    max-width: 80%;
+    padding: 20px 25px;
+    border-radius: 16px;
+    font-size: 22px;
+    line-height: 1.6;
+    word-wrap: break-word;
+}
+
+.message.user .message-bubble {
+    background: var(--primary-color);
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message.assistant .message-bubble {
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 2px solid var(--border-color);
+    border-bottom-left-radius: 4px;
+}
+
+/* 输入区域 */
+.chat-input-area {
+    background: var(--card-bg);
+    padding: 20px;
+    border-top: 2px solid var(--border-color);
+    display: flex;
+    gap: 15px;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 20px;
+    font-size: 22px;
+    border: 3px solid var(--border-color);
+    border-radius: 12px;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+}
+
+.chat-input:focus {
+    border-color: var(--primary-color);
+}
+
+.btn-send {
+    min-width: 150px;
+    padding: 20px 30px;
+    font-size: 24px;
+}
+
+/* 提示框 */
+.toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 25px 40px;
+    border-radius: 12px;
+    font-size: 22px;
+    z-index: 9999;
+    min-width: 300px;
+    text-align: center;
+}
+
+.toast.hidden {
+    display: none;
+}
+
+/* 加载动画 */
+.loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.loading.hidden {
+    display: none;
+}
+
+.loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 6px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading p {
+    color: white;
+    font-size: 24px;
+    margin-top: 20px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* 测试账号提示 */
+.test-account-hint {
+    background: #fff7e6;
+    border: 2px solid #ffa940;
+    border-radius: 12px;
+    padding: 20px;
+    margin-top: 20px;
+    text-align: center;
+}
+
+.test-account-hint p {
+    font-size: 20px;
+    color: #ad4e00;
+    margin: 5px 0;
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+}
+
+.empty-state p {
+    font-size: 24px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .logo h1 {
+        font-size: 42px;
+    }
+
+    .page-title {
+        font-size: 28px;
+    }
+
+    .card {
+        padding: 25px;
+    }
+
+    .message-bubble {
+        max-width: 90%;
+        font-size: 20px;
+    }
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+    width: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
